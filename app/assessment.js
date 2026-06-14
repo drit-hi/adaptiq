@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 const LEVELS = ["Beginner", "Intermediate", "Advanced"];
 
@@ -216,7 +217,7 @@ function Analyzing() {
   );
 }
 
-function Report({ report, answers, onReset }) {
+function Report({ report, answers, onReset, dbStatus }) {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
@@ -415,6 +416,33 @@ function Report({ report, answers, onReset }) {
             </svg>
             Analyzed by AdaptIQ AI from your Learning DNA
           </p>
+
+          {dbStatus === "saving" && (
+            <p className="flex items-center gap-2 text-sm text-zinc-400 dark:text-zinc-500">
+              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
+              Saving your profile…
+            </p>
+          )}
+          {dbStatus === "saved" && (
+            <p className="flex items-center gap-2 text-sm text-emerald-500">
+              <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+                <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Profile saved
+            </p>
+          )}
+          {dbStatus === "db-error" && (
+            <p className="flex items-center gap-2 text-sm text-amber-500">
+              <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+                <path d="M12 9v4m0 3h.01M10.3 4.3 2.7 17.4A2 2 0 0 0 4.4 20.4h15.2a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Couldn&apos;t save profile
+            </p>
+          )}
+
           <button
             type="button"
             onClick={onReset}
@@ -435,6 +463,8 @@ export default function Assessment() {
   const [report, setReport] = useState(null);
   const [payload, setPayload] = useState(null); // resolved answers sent to API; used for report display
   const [errorMessage, setErrorMessage] = useState("");
+  // dbStatus: null | "saving" | "saved" | "db-error"
+  const [dbStatus, setDbStatus] = useState(null);
 
   const update = (key, value) => setAnswers((prev) => ({ ...prev, [key]: value }));
 
@@ -483,6 +513,39 @@ export default function Assessment() {
 
       setReport(data.report);
       setPhase("report");
+
+      // Save to Supabase non-blocking — report is already visible.
+      setDbStatus("saving");
+      (async () => {
+        try {
+          const { data: student, error: studentError } = await supabase
+            .from("students")
+            .insert({ name: apiPayload.name })
+            .select("id")
+            .single();
+
+          if (studentError) throw studentError;
+
+          const { error: profileError } = await supabase
+            .from("learning_profiles")
+            .insert({
+              student_id: student.id,
+              topic: apiPayload.topic,
+              current_level: apiPayload.level,
+              learning_style: apiPayload.style,
+              daily_time: apiPayload.time,
+              goal: apiPayload.goal,
+              target_duration: apiPayload.duration,
+              learning_dna: data.report,
+            });
+
+          if (profileError) throw profileError;
+
+          setDbStatus("saved");
+        } catch {
+          setDbStatus("db-error");
+        }
+      })();
     } catch (err) {
       setErrorMessage(
         err instanceof Error ? err.message : "Something went wrong. Please try again."
@@ -496,6 +559,7 @@ export default function Assessment() {
     setReport(null);
     setPayload(null);
     setErrorMessage("");
+    setDbStatus(null);
     setPhase("form");
   };
 
@@ -563,7 +627,7 @@ export default function Assessment() {
       )}
 
       {phase === "report" && report && payload && (
-        <Report report={report} answers={payload} onReset={reset} />
+        <Report report={report} answers={payload} onReset={reset} dbStatus={dbStatus} />
       )}
 
       {phase === "form" && (
