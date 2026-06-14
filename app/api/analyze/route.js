@@ -38,28 +38,34 @@ const REPORT_SCHEMA = {
       strategy: {
         type: "array",
         items: { type: "string" },
-        description: "4-5 ordered, personalized study strategy steps referencing the topic, level, time, and goal.",
+        description: "4-5 ordered, personalized study strategy steps. Each step must be phased to a concrete milestone within the student's target duration (e.g. 'In your first two weeks…', 'By month 2…'). Reference the topic, level, daily time, goal, and duration throughout.",
       },
     },
     required: ["title", "tagline", "strengths", "weaknesses", "method", "strategy"],
   },
 };
 
-const REQUIRED_FIELDS = ["topic", "level", "style", "time", "goal"];
+const REQUIRED_FIELDS = ["name", "topic", "level", "style", "time", "goal", "duration"];
 
 function buildPrompt(answers) {
   return [
     "You are AdaptIQ, an AI that builds a student's personalized \"Learning DNA\" profile.",
+    `The student's name is ${answers.name}. Address them by name where it feels natural.`,
     "Based on the assessment answers below, produce a Learning DNA report.",
-    "Be specific and personal: reference the learner's actual topic, level, available time, and goal.",
+    "Be specific and personal: reference the learner's actual topic, level, available time, goal, and timeline.",
+    `The strategy steps must be concretely phased to fit within ${answers.duration} — break the timeline into`,
+    "logical milestones (e.g. 'In the first two weeks…', 'By month 2…') so the student can see exactly",
+    "how to progress from start to goal within the time they have available.",
     "Keep every field concise and encouraging but honest.",
     "",
     "Assessment answers:",
+    `- Student name: ${answers.name}`,
     `- Topic they want to learn: ${answers.topic}`,
     `- Current skill level: ${answers.level}`,
     `- Preferred learning style: ${answers.style}`,
     `- Time available per day: ${answers.time}`,
     `- Learning goal: ${answers.goal}`,
+    `- Target learning duration: ${answers.duration}`,
   ].join("\n");
 }
 

@@ -36,12 +36,17 @@ const GOALS = [
   { value: "Personal interest", emoji: "✨" },
 ];
 
+const DURATION_OPTIONS = ["1 month", "3 months", "6 months", "1 year", "Custom"];
+
 const INITIAL = {
+  name: "",
   topic: "",
   level: "",
   style: "",
   time: "",
   goal: "",
+  duration: "",
+  customDuration: "",
 };
 
 // ---- Small presentational helpers ----
@@ -233,7 +238,7 @@ function Report({ report, answers, onReset }) {
     </span>
   );
 
-  const chips = [answers.topic.trim(), answers.level, answers.style, answers.time, answers.goal];
+  const chips = [answers.name, answers.topic, answers.level, answers.style, answers.time, answers.goal, answers.duration];
 
   return (
     <div className="aiq-anim space-y-6">
@@ -428,20 +433,37 @@ export default function Assessment() {
   // phase: "form" | "analyzing" | "report" | "error"
   const [phase, setPhase] = useState("form");
   const [report, setReport] = useState(null);
+  const [payload, setPayload] = useState(null); // resolved answers sent to API; used for report display
   const [errorMessage, setErrorMessage] = useState("");
 
   const update = (key, value) => setAnswers((prev) => ({ ...prev, [key]: value }));
 
+  const effectiveDuration =
+    answers.duration === "Custom" ? answers.customDuration.trim() : answers.duration;
+
   const isComplete =
+    answers.name.trim() !== "" &&
     answers.topic.trim() !== "" &&
     answers.level !== "" &&
     answers.style !== "" &&
     answers.time !== "" &&
-    answers.goal !== "";
+    answers.goal !== "" &&
+    effectiveDuration !== "";
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!isComplete) return;
+
+    const apiPayload = {
+      name: answers.name.trim(),
+      topic: answers.topic.trim(),
+      level: answers.level,
+      style: answers.style,
+      time: answers.time,
+      goal: answers.goal,
+      duration: effectiveDuration,
+    };
+    setPayload(apiPayload);
 
     setErrorMessage("");
     setPhase("analyzing");
@@ -450,7 +472,7 @@ export default function Assessment() {
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(answers),
+        body: JSON.stringify(apiPayload),
       });
 
       const data = await response.json();
@@ -472,6 +494,7 @@ export default function Assessment() {
   const reset = () => {
     setAnswers(INITIAL);
     setReport(null);
+    setPayload(null);
     setErrorMessage("");
     setPhase("form");
   };
@@ -539,8 +562,8 @@ export default function Assessment() {
         </div>
       )}
 
-      {phase === "report" && report && (
-        <Report report={report} answers={answers} onReset={reset} />
+      {phase === "report" && report && payload && (
+        <Report report={report} answers={payload} onReset={reset} />
       )}
 
       {phase === "form" && (
@@ -548,9 +571,21 @@ export default function Assessment() {
           onSubmit={handleSubmit}
           className="space-y-8 rounded-3xl border border-zinc-200 bg-white p-8 shadow-2xl shadow-zinc-900/5 dark:border-white/10 dark:bg-zinc-900 sm:p-10"
         >
-          {/* 1. Topic */}
+          {/* 1. Name */}
           <div>
-            <StepLabel step={1}>What topic do you want to learn?</StepLabel>
+            <StepLabel step={1}>What&apos;s your name?</StepLabel>
+            <input
+              type="text"
+              value={answers.name}
+              onChange={(e) => update("name", e.target.value)}
+              placeholder="e.g. Alex, Sarah…"
+              className="mt-4 w-full rounded-2xl border border-zinc-300 bg-zinc-50 px-5 py-3.5 text-base text-zinc-900 outline-none transition-all placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/15 dark:border-white/15 dark:bg-zinc-950 dark:text-zinc-100"
+            />
+          </div>
+
+          {/* 2. Topic */}
+          <div>
+            <StepLabel step={2}>What topic do you want to learn?</StepLabel>
             <input
               type="text"
               value={answers.topic}
@@ -560,9 +595,9 @@ export default function Assessment() {
             />
           </div>
 
-          {/* 2. Skill level */}
+          {/* 3. Skill level */}
           <div>
-            <StepLabel step={2}>Current skill level</StepLabel>
+            <StepLabel step={3}>Current skill level</StepLabel>
             <div className="mt-4 flex flex-wrap gap-3">
               {LEVELS.map((level) => (
                 <button
@@ -577,9 +612,9 @@ export default function Assessment() {
             </div>
           </div>
 
-          {/* 3. Learning style */}
+          {/* 4. Learning style */}
           <div>
-            <StepLabel step={3}>Preferred learning style</StepLabel>
+            <StepLabel step={4}>Preferred learning style</StepLabel>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {STYLES.map((style) => {
                 const active = answers.style === style.value;
@@ -629,9 +664,9 @@ export default function Assessment() {
             </div>
           </div>
 
-          {/* 4. Daily time */}
+          {/* 5. Daily time */}
           <div>
-            <StepLabel step={4}>How much time can you dedicate per day?</StepLabel>
+            <StepLabel step={5}>How much time can you dedicate per day?</StepLabel>
             <div className="mt-4 flex flex-wrap gap-3">
               {TIME_OPTIONS.map((time) => (
                 <button
@@ -646,9 +681,9 @@ export default function Assessment() {
             </div>
           </div>
 
-          {/* 5. Goal */}
+          {/* 6. Goal */}
           <div>
-            <StepLabel step={5}>Your learning goal</StepLabel>
+            <StepLabel step={6}>Your learning goal</StepLabel>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {GOALS.map((goal) => {
                 const active = answers.goal === goal.value;
@@ -669,6 +704,35 @@ export default function Assessment() {
                 );
               })}
             </div>
+          </div>
+
+          {/* 7. Target duration */}
+          <div>
+            <StepLabel step={7}>Target learning duration</StepLabel>
+            <div className="mt-4 flex flex-wrap gap-3">
+              {DURATION_OPTIONS.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => {
+                    update("duration", opt);
+                    if (opt !== "Custom") update("customDuration", "");
+                  }}
+                  className={`${pillBase} ${answers.duration === opt ? pillActive : pillIdle}`}
+                >
+                  {opt === "Custom" ? "Custom…" : opt}
+                </button>
+              ))}
+            </div>
+            {answers.duration === "Custom" && (
+              <input
+                type="text"
+                value={answers.customDuration}
+                onChange={(e) => update("customDuration", e.target.value)}
+                placeholder="e.g. 2 weeks, 8 months…"
+                className="mt-3 w-full rounded-2xl border border-zinc-300 bg-zinc-50 px-5 py-3.5 text-base text-zinc-900 outline-none transition-all placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/15 dark:border-white/15 dark:bg-zinc-950 dark:text-zinc-100"
+              />
+            )}
           </div>
 
           {/* Submit */}
@@ -696,7 +760,7 @@ export default function Assessment() {
             </button>
             {!isComplete && (
               <p className="mt-3 text-sm text-zinc-400 dark:text-zinc-500">
-                Answer all five questions to continue.
+                Answer all seven questions to continue.
               </p>
             )}
           </div>
